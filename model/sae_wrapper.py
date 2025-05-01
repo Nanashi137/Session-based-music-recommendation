@@ -8,11 +8,14 @@ import torch.nn as nn
 from .sae import SAE
 
 class SAE_wrapper(L.LightningModule): 
-    def __init__(self, dim_list: list, lr: float=3e-3):
+    def __init__(self, dim_list: list, lr: float=1e-3, sparsity_parameter: float=0.05, sparsity_weight: float=1e-3):
         super().__init__()
+        self.save_hyperparameters()
 
         self.model = SAE(dim_list=dim_list)
         self.lr = lr
+        self.sparsity_parameter = sparsity_parameter
+        self.sparsity_weight = sparsity_weight
 
         self.criterion = nn.MSELoss()
 
@@ -24,29 +27,46 @@ class SAE_wrapper(L.LightningModule):
     
     def decode(self, x): 
         return self.model.decode(x)
+    
+    def kl_divergence(self, rho_hat):
+        rho = self.sparsity_parameter
+        return torch.sum(
+            rho * torch.log(rho / (rho_hat + 1e-9)) + 
+            (1 - rho) * torch.log((1 - rho) / (1 - rho_hat + 1e-9))
+        )
 
     def training_step(self, batch, batch_idx):
-        reconstruct = self.forward(batch)
-        loss = self.criterion(reconstruct, batch)
-
+        reconstruct, z = self.forward(batch)
+        rho_hat = torch.mean(z, dim=0)
+        sparsity_loss = self.kl_divergence(rho_hat)
+        reconstruct_loss = self.criterion(reconstruct, batch)
+        loss = reconstruct_loss + self.sparsity_weight*sparsity_loss
+        self.log("train_reconstruct_loss", reconstruct_loss, prog_bar=True, on_epoch=True, logger=True)
+        self.log("train_sparsity_loss", sparsity_loss, prog_bar=True, on_epoch=True, logger=True)
         self.log("train_loss", loss, prog_bar=True, on_epoch=True, logger=True)
         
         return loss
 
     def validation_step(self, batch, batch_idx):
-        loss = self._shared_eval(batch=batch)
+        reconstruct_loss, sparsity_loss = self._shared_eval(batch=batch)
+        loss = reconstruct_loss + self.sparsity_weight*sparsity_loss
+        self.log("val_reconstruct_loss", reconstruct_loss, prog_bar=True, on_epoch=True, logger=True)
+        self.log("val_sparsity_loss", sparsity_loss, prog_bar=True, on_epoch=True, logger=True)
         self.log("val_loss", loss, prog_bar=True, on_epoch=True, logger=True)
         return {"val_loss": loss}
     
     def test_step(self, batch, batch_idx):
-        loss = self._shared_eval(batch=batch)
-        self.log_dict({"test_loss": loss})
+        reconstruct_loss, _ = self._shared_eval(batch=batch)
+        self.log_dict({"test_reconstruct_loss": reconstruct_loss})
     
     def _shared_eval(self, batch):
-        reconstruct = self.forward(batch)
-        loss = self.criterion(reconstruct, batch)
+        reconstruct, z = self.forward(batch)
+        rho_hat = torch.mean(z, dim=0)
+        sparsity_loss = self.kl_divergence(rho_hat)
+        reconstruct_loss = self.criterion(reconstruct, batch)
         
-        return loss
+        
+        return reconstruct_loss, sparsity_loss
 
     def on_before_optimizer_step(self, optimizer):
         # Compute the 2-norm for each layer
