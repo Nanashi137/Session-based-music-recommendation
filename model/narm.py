@@ -34,8 +34,9 @@ class NARM(nn.Module):
         self.B = nn.Linear(in_features=self.embedding_dim, out_features=2*self.hidden_size)
 
     def forward(self, sequences, lengths): 
+        lengths = lengths.to(dtype=torch.long).cpu()
         # GRU layers
-        hidden = self.init_hidden(sequences.shape[0])
+        hidden = self.init_hidden(sequences.shape[0]).to(device = sequences.device)
         embs = self.emb(sequences)
         embs = pack_padded_sequence(embs, lengths, batch_first=True, enforce_sorted=False)
         gru_out, hidden = self.gru(embs, hidden)
@@ -60,7 +61,7 @@ class NARM(nn.Module):
         c_t = torch.cat([ht, attention_output], dim=1) #batch_size, 2*hidden_dim
         
         # Decoder 
-        item_embs = self.emb(torch.arange(start=0, end=self.n_items, step=1)) # n_items, embedding_dim
+        item_embs = self.emb(torch.arange(start=0, end=self.n_items, step=1).to(device = sequences.device)) # n_items, embedding_dim
         decoded_item_embs = self.B(item_embs) # n_items, 2*hidden_dim
 
         logits = torch.matmul(c_t, decoded_item_embs.T) # batch_size, n_items
