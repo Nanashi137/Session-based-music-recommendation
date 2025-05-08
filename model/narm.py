@@ -75,8 +75,14 @@ class NARM(nn.Module):
         return sum(p.numel() for p in self.parameters() if p.requires_grad)
 
 if __name__ == "__main__":
-    a = NARM(embedding_dim=11, hidden_size=11, n_gru_layers=1, n_items=300000)
-    t = torch.tensor([[0, 2, 3, 300000, 300000], [1, 2, 3, 4, 300000]])
-    l = torch.tensor([3, 4])
+    a = NARM(embedding_dim=11, hidden_size=11, n_gru_layers=1, n_items=6)
+    t = torch.tensor([[0, 2, 3, 6, 6], [1, 2, 3, 4, 6]])
+    l = torch.tensor([2, 2])
+    targets = torch.tensor([2, 3])
+    logits = a(t, l)
 
-    print(a.n_trainable_params())
+
+    loss_fn = nn.CrossEntropyLoss(reduction="mean")
+    
+    print(logits)
+    print(loss_fn(logits, targets))
