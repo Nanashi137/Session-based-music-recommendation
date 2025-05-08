@@ -15,7 +15,7 @@ class NARMWrapper(L.LightningModule):
         self.save_hyperparameters()
 
         self.lr = lr
-        self.criterion = nn.CrossEntropyLoss(reduction="mean")
+        self.criterion = nn.CrossEntropyLoss(reduction="mean", ignore_index=padding_idx if padding_idx else n_items)
 
         self.embedding_matrix = self._load_embedding_matrix(embedding_matrix_path=embedding_matrix_path) if not embedding_matrix_path else None
         self.model = NARM(embedding_dim=embedding_dim, hidden_size=hidden_size, n_gru_layers=n_gru_layers, n_items=n_items, padding_idx=padding_idx, embedding_matrix=self.embedding_matrix)
