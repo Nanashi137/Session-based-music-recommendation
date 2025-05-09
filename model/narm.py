@@ -16,7 +16,7 @@ class NARM(nn.Module):
 
         self.emb = nn.Embedding(num_embeddings=n_items+1, embedding_dim=self.embedding_dim, padding_idx=self.padding_idx)
         if embedding_matrix is not None:
-            self.emb.weight = nn.Parameter(embedding_dim)
+            self.emb.weight = nn.Parameter(embedding_matrix)
             self.emb.weight.requires_grad = False
         
         # GRU 

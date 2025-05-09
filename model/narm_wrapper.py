@@ -15,13 +15,15 @@ class NARMWrapper(L.LightningModule):
         self.save_hyperparameters()
 
         self.lr = lr
-        self.criterion = nn.CrossEntropyLoss(reduction="mean", ignore_index=padding_idx if padding_idx else n_items)
+        self.criterion = nn.CrossEntropyLoss(reduction="mean", ignore_index=n_items if not padding_idx else padding_idx)
 
-        self.embedding_matrix = self._load_embedding_matrix(embedding_matrix_path=embedding_matrix_path) if not embedding_matrix_path else None
+        self.embedding_matrix = self._load_embedding_matrix(embedding_matrix_path=embedding_matrix_path) if embedding_matrix_path else None
         self.model = NARM(embedding_dim=embedding_dim, hidden_size=hidden_size, n_gru_layers=n_gru_layers, n_items=n_items, padding_idx=padding_idx, embedding_matrix=self.embedding_matrix)
 
     def _load_embedding_matrix(self, embedding_matrix_path):
-        return torch.from_numpy(np.load(file=embedding_matrix_path))
+        torch_embedding_matrix = torch.tensor(np.load(file=embedding_matrix_path).astype(np.float32))
+        torch_embedding_matrix = torch_embedding_matrix / (torch_embedding_matrix.norm(p=2, dim=1, keepdim=True) + 1e-8)
+        return torch_embedding_matrix
 
 
     def forward(self, seq, seq_len):
