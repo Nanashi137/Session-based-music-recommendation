@@ -10,11 +10,12 @@ from .narm import NARM
 
 
 class NARMWrapper(L.LightningModule): 
-    def __init__(self, embedding_dim, hidden_size, n_gru_layers, n_items, padding_idx: int=None, embedding_matrix_path: str=None, lr: float=1e-3):
+    def __init__(self, embedding_dim, hidden_size, n_gru_layers, n_items, padding_idx: int=None, embedding_matrix_path: str=None, lr: float=1e-3, k: int=10):
         super().__init__()
         self.save_hyperparameters()
 
         self.lr = lr
+        self.k = k
         self.criterion = nn.CrossEntropyLoss(reduction="mean", ignore_index=n_items if not padding_idx else padding_idx)
 
         self.embedding_matrix = self._load_embedding_matrix(embedding_matrix_path=embedding_matrix_path) if embedding_matrix_path else None
@@ -44,11 +45,18 @@ class NARMWrapper(L.LightningModule):
     def validation_step(self, batch, batch_idx):
         loss = self._shared_eval(batch)
         self.log("val_loss", loss, prog_bar=True, on_epoch=True, logger=True)
+
+        metrics = self.evaluation_metric(batch, "Validation")
+        self.log_dict(metrics, prog_bar=True)
+
         return {"val_loss": loss}
     
     def test_step(self, batch, batch_idx):
         loss, _ = self._shared_eval(batch=batch)
         self.log_dict({"test_loss": loss})
+
+        metrics = self.evaluation_metric(batch, "Test")
+        self.log_dict(metrics, prog_bar=True)
     
     def _shared_eval(self, batch):
         seqs, seq_lens, targets = batch
@@ -58,8 +66,35 @@ class NARMWrapper(L.LightningModule):
         
         return loss
 
+    def evaluation_metric(self, batch, set):
+        seqs, seq_lens, targets = batch
+        logits = self(seqs, seq_lens)
+
+        # Get top k items
+        topk = torch.topk(logits, self.k, dim=1).indices  # batch_size, k
+        targets = targets.view(-1, 1) # batch_size , 1
+
+        # Hit rate
+        hits = (topk == targets).float()
+        hr = hits.sum(dim=1).mean()
+
+        # MRR
+        rr = hits/torch.arange(1, self.k+1, device=logits.device).float()
+        mrr = rr.sum(dim=1).mean()
+
+        # nDCG
+        discount = torch.log2(torch.arange(2, self.k + 2, device=logits.device).float())
+        dcg = (hits / discount).sum(dim=1)
+        ndcg = dcg.mean()
+
+        return {
+            f"{set} HR@{self.k}": hr.item(),
+            f"{set} MRR@{self.k}": mrr.item(),
+            f"{set} nDCG@{self.k}": ndcg.item()
+        }
+
     def on_before_optimizer_step(self, optimizer):
-        # Compute the 2-norm for each layer
+        # Compute the L2-norm for each layer
         # If using mixed precision, the gradients are already unscaled here
         norms = grad_norm(self, norm_type=2)
         self.log_dict(norms)
