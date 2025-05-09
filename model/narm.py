@@ -65,6 +65,7 @@ class NARM(nn.Module):
         decoded_item_embs = self.B(item_embs) # n_items, 2*hidden_dim
 
         logits = torch.matmul(c_t, decoded_item_embs.T) # batch_size, n_items
+        logits[:,self.padding_idx] = float('-inf') # ensure padding item doesn't get recommend
 
         return logits
 
