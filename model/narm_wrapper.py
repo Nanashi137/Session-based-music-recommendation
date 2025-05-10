@@ -16,7 +16,7 @@ class NARMWrapper(L.LightningModule):
 
         self.lr = lr
         self.k = k
-        self.criterion = nn.CrossEntropyLoss(reduction="mean", ignore_index=n_items if not padding_idx else padding_idx)
+        self.criterion = nn.CrossEntropyLoss(reduction="mean", ignore_index= padding_idx if padding_idx is not None else n_items)
 
         self.embedding_matrix = self._load_embedding_matrix(embedding_matrix_path=embedding_matrix_path) if embedding_matrix_path else None
         self.model = NARM(embedding_dim=embedding_dim, hidden_size=hidden_size, n_gru_layers=n_gru_layers, n_items=n_items, padding_idx=padding_idx, embedding_matrix=self.embedding_matrix)
@@ -52,7 +52,7 @@ class NARMWrapper(L.LightningModule):
         return {"val_loss": loss}
     
     def test_step(self, batch, batch_idx):
-        loss, _ = self._shared_eval(batch=batch)
+        loss = self._shared_eval(batch)
         self.log_dict({"test_loss": loss})
 
         metrics = self.evaluation_metric(batch, "Test")
@@ -88,9 +88,9 @@ class NARMWrapper(L.LightningModule):
         ndcg = dcg.mean()
 
         return {
-            f"{set} HR@{self.k}": hr.item(),
-            f"{set} MRR@{self.k}": mrr.item(),
-            f"{set} nDCG@{self.k}": ndcg.item()
+            f"{set} HR{self.k}": hr.item(),
+            f"{set} MRR{self.k}": mrr.item(),
+            f"{set} nDCG{self.k}": ndcg.item()
         }
 
     def on_before_optimizer_step(self, optimizer):
