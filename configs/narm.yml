@@ -1,0 +1,18 @@
+hparams:
+  lr: 3e-3
+  embedding_dim: 32
+  hidden_size: 32
+  n_gru_layers: 4
+  n_items: 345712
+  padding_idx: 345712
+  embedding_matrix_path: null
+
+data:
+  root: "data"
+  folder: "split_session"
+
+training:
+  k: 10
+  batch_size: 128
+  epochs: 20
+  patience: 3
