@@ -23,7 +23,6 @@ class NARMWrapper(L.LightningModule):
 
     def _load_embedding_matrix(self, embedding_matrix_path):
         torch_embedding_matrix = torch.tensor(np.load(file=embedding_matrix_path).astype(np.float32))
-        torch_embedding_matrix = torch_embedding_matrix / (torch_embedding_matrix.norm(p=2, dim=1, keepdim=True) + 1e-8)
         return torch_embedding_matrix
 
 
