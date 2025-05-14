@@ -3,3 +3,5 @@ checkpoints/
 data/
 cache/
 experiments
+res
+ce_checkpoints
