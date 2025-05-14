@@ -1,0 +1,15 @@
+hparams:
+  lr: 3e-3
+  id2features_matrix_path: "data/embeddings/vanilla_embeddings.npy"
+  input_dim: 11
+  embedding_dim: 64
+  margin: 0.2
+
+data:
+  root: "data"
+  folder: "contrastive"
+
+training:
+  batch_size: 512
+  epochs: 30
+  patience: 3
