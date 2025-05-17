@@ -28,7 +28,33 @@ class NARMWrapper(L.LightningModule):
 
     def forward(self, seq, seq_len):
         return self.model(seq, seq_len)
-    
+
+    def inference(self, sequence_embs: torch.Tensor, k: int=20): 
+        '''
+            Input:
+                sequence_embs: sequence of track embedding within session, shape: lxd where l is sequence length, d is embedding dimension
+            Output: 
+                track_idices: indices of top-k track to recommend 
+        '''
+        
+        gru_out, hidden = self.model.gru(sequence_embs, self.model.h0.view(self.model.n_gru_layers, self.model.hidden_size))
+
+        ht = hidden[-1] # batch_size, hidden_dim
+
+        q1 = self.model.A2(gru_out.view(-1, self.model.hidden_size)).view(gru_out.shape) # seq_length,hidden_dim
+        q2 = self.model.A1(ht).unsqueeze(dim=0) # 1, hidden_dim
+        alpha = self.model.v_t(torch.sigmoid(q1 + q2)).squeeze(dim=1) # seq_length
+        alpha = torch.softmax(alpha, dim=0)
+        attention_output = torch.einsum("i, ij -> j", alpha, gru_out) # hidden_dim
+
+        c_t = torch.cat([ht, attention_output], dim=0) # 2*hidden_dim
+        
+        item_embs = self.model.emb(torch.arange(start=0, end=self.model.n_items, step=1).to(device = sequence_embs.device)) # n_items, embedding_dim
+        decoded_item_embs = self.model.B(item_embs) # n_items, 2*hidden_dim
+        logits = torch.matmul(c_t, decoded_item_embs.T) # batch_size, n_items
+
+        return torch.topk(logits, k=k).indices
+
     def training_step(self, batch, batch_idx):
 
         seqs, seq_lens, targets = batch
